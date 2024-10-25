@@ -1,3 +1,44 @@
+# 编程题
+
+## 在TaskControlBlock中添加了syscall-times，用于记录task对于每个系统调用的次数。
+```Rust 
+    /// The task control block (TCB) of a task.
+    #[derive(Copy, Clone)]
+    pub struct TaskControlBlock {
+        /// The task status in it's lifecycle
+        pub task_status: TaskStatus,
+        /// The task context
+        pub task_cx: TaskContext,
+        /// The numbers of syscall called by task
+        pub syscall_times: [u32; MAX_SYSCALL_NUM],
+    }
+```
+## 在syscall中添加一行，每次syscall时触发计数。
+```Rust
+    pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
+        ...
+        cnt_syscall(syscall_id);    
+        ...
+    }
+
+```
+
+## 实现sys_task_info。
+```Rust
+    pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
+        trace!("kernel: sys_task_info");
+        unsafe {
+            *_ti = TaskInfo {
+                status: TaskStatus::Running,
+                syscall_times: get_syscall_times(),
+                time: get_time_ms(),
+            }; 
+        }
+        0
+    }
+
+```
+
 # 简答题
 ## 1.  Q: 正确进入 U 态后，程序的特征还应有：使用 S 态特权指令，访问 S 态寄存器后会报错。 请同学们可以自行测试这些内容（运行 三个 bad 测例 (ch2b_bad_*.rs) ）， 描述程序出错行为，同时注意注明你使用的 sbi 及其版本。
 
