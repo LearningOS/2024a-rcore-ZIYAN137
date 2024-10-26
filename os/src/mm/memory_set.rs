@@ -63,6 +63,18 @@ impl MemorySet {
             None,
         );
     }
+    /// Assume that no conflicts.
+    pub fn unmap(&mut self,
+        start_va: VirtAddr,
+        end_va: VirtAddr,
+    ) {
+        for area in self.areas.iter_mut() {
+            if area.vpn_range.get_start() == start_va.floor() && area.vpn_range.get_end() == end_va.ceil() {
+                area.unmap(&mut self.page_table);
+                break;
+            }
+        }
+    }
     fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
         map_area.map(&mut self.page_table);
         if let Some(data) = data {
