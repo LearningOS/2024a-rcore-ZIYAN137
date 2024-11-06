@@ -18,9 +18,23 @@ pub use memory_set::remap_test;
 pub use memory_set::{MapPermission, MemorySet, KERNEL_SPACE};
 pub use page_table::{translated_byte_buffer, translated_refmut, translated_str, PageTableEntry};
 use page_table::{PTEFlags, PageTable};
+use crate::task::current_user_token;
 /// initiate heap allocator, frame allocator and kernel space
 pub fn init() {
     heap_allocator::init_heap();
     frame_allocator::init_frame_allocator();
     KERNEL_SPACE.exclusive_access().activate();
+}
+
+/// translate virtual address to physical address
+pub fn v2p(virt_addr: VirtAddr) -> Option<PhysAddr> {
+    let offset = virt_addr.page_offset();
+    let vpn = virt_addr.floor();
+    let ppn = PageTable::from_token(current_user_token()).translate(vpn).map(|pte| pte.ppn());
+    if let Some(ppn) = ppn {
+        Some(PhysAddr(usize::from(PhysAddr::from(ppn)) + offset))
+    } else {
+        println!("v2p failed: {:x?}", virt_addr);
+        None
+    }
 }
