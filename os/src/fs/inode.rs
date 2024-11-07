@@ -4,7 +4,7 @@
 //!
 //! `UPSafeCell<OSInodeInner>` -> `OSInode`: for static `ROOT_INODE`,we
 //! need to wrap `OSInodeInner` into `UPSafeCell`
-use super::File;
+use super::{File, StatMode};
 use crate::drivers::BLOCK_DEVICE;
 use crate::mm::UserBuffer;
 use crate::sync::UPSafeCell;
@@ -52,6 +52,26 @@ impl OSInode {
         }
         v
     }
+    /// linkat
+    pub fn linkat(&self, old_name: &str, new_name: &str) -> isize {
+        let inner = self.inner.exclusive_access();
+        inner.inode.linkat(old_name, new_name)
+    }
+    /// unlinkat
+    pub fn unlinkat(&self, name: &str) -> isize {
+        let inner = self.inner.exclusive_access();
+        inner.inode.unlinkat(name)
+    }
+}
+
+/// linkat
+pub fn linkat(old_name: &str, new_name: &str) -> isize {
+    ROOT_INODE.linkat(old_name, new_name)
+}
+
+/// unlinkat
+pub fn unlinkat(name: &str) -> isize {
+    ROOT_INODE.unlinkat(name)
 }
 
 lazy_static! {
@@ -154,5 +174,17 @@ impl File for OSInode {
             total_write_size += write_size;
         }
         total_write_size
+    }
+    fn fstat(&self) -> (u64, StatMode, u32) {
+        let inner = self.inner.exclusive_access();
+        let ino = inner.inode.get_inode_id();
+        let mode = if inner.inode.is_dir() {
+            StatMode::DIR
+        } else {
+            StatMode::FILE
+        };
+        let nlink = ROOT_INODE.get_nlink(ino);
+        // println!("nlink: {}", nlink);
+        (ino as u64, mode, nlink)
     }
 }
