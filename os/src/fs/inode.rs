@@ -144,6 +144,11 @@ pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {
     }
 }
 
+/// Get the number of hard links of a inode
+pub fn get_nlink(ino: usize) -> usize {
+    ROOT_INODE.get_nlink(ino)
+}
+
 impl File for OSInode {
     fn readable(&self) -> bool {
         self.readable
@@ -175,16 +180,16 @@ impl File for OSInode {
         }
         total_write_size
     }
-    fn fstat(&self) -> (u64, StatMode, u32) {
+    fn get_inode_id(&self) -> usize {
         let inner = self.inner.exclusive_access();
-        let ino = inner.inode.get_inode_id();
-        let mode = if inner.inode.is_dir() {
+        inner.inode.get_inode_id()
+    }
+    fn get_mode(&self) -> StatMode {
+        let inner = self.inner.exclusive_access();
+        if inner.inode.is_dir() {
             StatMode::DIR
         } else {
             StatMode::FILE
-        };
-        let nlink = ROOT_INODE.get_nlink(ino);
-        // println!("nlink: {}", nlink);
-        (ino as u64, mode, nlink)
+        }
     }
 }

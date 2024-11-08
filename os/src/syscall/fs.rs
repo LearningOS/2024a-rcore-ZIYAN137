@@ -1,5 +1,5 @@
 //! File and filesystem-related syscalls
-use crate::fs::{open_file, OpenFlags, Stat, linkat, unlinkat};
+use crate::fs::{open_file, OpenFlags, Stat, linkat, unlinkat, get_nlink};
 use crate::mm::{translated_byte_buffer, translated_str, UserBuffer, translated_refmut};
 use crate::task::{current_task, current_user_token};
 
@@ -80,18 +80,11 @@ pub fn sys_fstat(_fd: usize, _st: *mut Stat) -> isize {
     let token = current_user_token();
     let task = current_task().unwrap();
     let inner = task.inner_exclusive_access();
-    if _fd >= inner.fd_table.len() {
-        return -1;
-    }
-    if let Some(inode) = &inner.fd_table[_fd] {
-        let inode = inode.clone();
-        drop(inner);
-        let (ino, mode, nlink) = inode.fstat();
-        let st = translated_refmut(token, _st as *mut Stat);
-        st.dev = 0;
-        st.ino = ino;
-        st.mode = mode;
-        st.nlink = nlink;
+    let st = translated_refmut(token, _st as *mut Stat);
+    if let Some(osinode) = &inner.fd_table[_fd] {
+        st.ino = osinode.get_inode_id() as u64;
+        st.mode = osinode.get_mode();
+        st.nlink = get_nlink(st.ino as usize) as u32;
         0
     } else {
         -1
