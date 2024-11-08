@@ -1,10 +1,49 @@
 # 编程题
 
-// TODO
+## 代码迁移：
+    直接迁移即可，只需稍微修改一下spawn，因为文件系统的引入，我们需要从文件系统中加载用户程序
+``` Rust
+pub fn sys_spawn(_path: *const u8) -> isize {
+    //...
+    if let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) {
+        let data = app_inode.read_all();
+        let new_task = current_task.spawn(data.as_slice());
+        // ...
+    }
+    // ...
+}
+```
+
+## 实现linkat
+
+    仿照create写了一个linkat
+    根据old_name去读取old_inode_id，然后检测new_name是否存在，写入一个新的new_name，其inode_id为old_inode_id
+
+## 实现unlinkat
+
+    根据面向testcase编程 (笑
+    unlinkat就直接暴力查找，如果找到对应的dirent，将其改为DirEntry::empty()
+
+## 实现fstat
+
+    fstat主要是在获取ino, mode, nlink三个部分
+    也是根据面向testcase编程，nlink直接暴力查找即可
+    主要还是ino的获取，Inode将自己的block_id和block_offset传给fs，然后我们自己通过这两个参数算出ino
+    因为把ino算错了，导致nlink暴力搜索了一个错误的ino，导致返回的nlink一直是错的
 
 # 简答题
 
-// TODO
+## 1. 在我们的easy-fs中，root inode起着什么作用？如果root inode中的内容损坏了，会发生什么？
+
+    ROOT_INODE是根目录所对应的inode，如果ROOT_INODE损坏，整个文件系统也无法正确运行
+
+## 2. 举出使用 pipe 的一个实际应用的例子。
+
+    将一个命令的输出作为另一个命令的输入
+
+## 3. 如果需要在多个进程间互相通信，则需要为每一对进程建立一个管道，非常繁琐，请设计一个更易用的多进程通信机制。
+
+    共享内存？
 
 # 荣誉准则
 
