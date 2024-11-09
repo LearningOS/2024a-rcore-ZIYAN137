@@ -3,7 +3,7 @@ use crate::{
     task::{add_task, current_task, TaskControlBlock},
     trap::{trap_handler, TrapContext},
 };
-use alloc::sync::Arc;
+use alloc::{sync::Arc, vec::Vec};
 /// thread create syscall
 pub fn sys_thread_create(entry: usize, arg: usize) -> isize {
     trace!(
@@ -41,6 +41,27 @@ pub fn sys_thread_create(entry: usize, arg: usize) -> isize {
         tasks.push(None);
     }
     tasks[new_task_tid] = Some(Arc::clone(&new_task));
+
+    let len = process_inner.mutex_list.len();
+
+    let mutex_need = &mut process_inner.mutex_need;
+    while mutex_need.len() < new_task_tid + 1 {
+        let mut v = Vec::new();
+        for _ in 0..len {
+            v.push(0);
+        }
+        mutex_need.push(v);
+    }
+
+    let mutex_allocation = &mut process_inner.mutex_allocation;
+    while mutex_allocation.len() < new_task_tid + 1 {
+        let mut v = Vec::new();
+        for _ in 0..len {
+            v.push(0);
+        }
+        mutex_allocation.push(v);
+    }
+
     let new_task_trap_cx = new_task_inner.get_trap_cx();
     *new_task_trap_cx = TrapContext::app_init_context(
         entry,
