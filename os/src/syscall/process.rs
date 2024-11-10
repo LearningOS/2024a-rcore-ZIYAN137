@@ -1,12 +1,12 @@
 use crate::{
     config::MAX_SYSCALL_NUM,
     fs::{open_file, OpenFlags},
-    mm::{translated_ref, translated_refmut, translated_str, v2p, VirtAddr},
+    mm::{translated_ref, translated_refmut, translated_str},
     task::{
         current_process, current_task, current_user_token, exit_current_and_run_next, pid2process,
         suspend_current_and_run_next, SignalFlags, TaskStatus,
     },
-    timer::{get_time_us},
+    timer::get_time_us,
 };
 use alloc::{string::String, sync::Arc, vec::Vec};
 
@@ -164,21 +164,13 @@ pub fn sys_kill(pid: usize, signal: u32) -> isize {
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
-    let va = VirtAddr(_ts as usize);
-    if let Some(pa) = v2p(va) {
-        let time_us = get_time_us();
-        let tv = TimeVal {
-            sec: time_us / 1_000_000,
-            usec: time_us % 1_000_000,
-        };
-        let ts = pa.0 as *mut TimeVal;
-        unsafe {
-            *ts = tv;
-        }
-        0 
-    } else {
-        -1
-    }
+    let ts = translated_refmut(current_user_token(), _ts);
+    let time = get_time_us();
+    *ts = TimeVal {
+        sec: time / 1_000_000,
+        usec: time % 1_000_000,
+    };
+    0
 }
 
 /// task_info syscall

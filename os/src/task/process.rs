@@ -9,7 +9,6 @@ use crate::fs::{File, Stdin, Stdout};
 use crate::mm::{translated_refmut, MemorySet, KERNEL_SPACE};
 use crate::sync::{Condvar, Mutex, Semaphore, UPSafeCell};
 use crate::trap::{trap_handler, TrapContext};
-use crate::config::DEAD;
 use alloc::string::String;
 use alloc::sync::{Arc, Weak};
 use alloc::vec;
@@ -50,19 +49,8 @@ pub struct ProcessControlBlockInner {
     pub semaphore_list: Vec<Option<Arc<Semaphore>>>,
     /// condvar list
     pub condvar_list: Vec<Option<Arc<Condvar>>>,
-    /// enable deadlock detect
+    /// detect deadlock or not
     pub deadlock_detection: bool,
-
-    // mutex
-    /// Available ：含有 m 个元素的一维数组，每个元素代表可利用的某一类资源的数目， 其初值是该类资源的全部可用数目，其值随该类资源的分配和回收而动态地改变。 Available[j] = k，表示第 j 类资源的可用数量为 k。
-    pub mutex_available : Vec<usize>,
-    /// Work，表示操作系统可提供给线程继续运行所需的各类资源数目，它含有 m 个元素。初始时，Work = Available ；
-    pub mutex_work: Vec<usize>,
-    /// Need：n * m 的矩阵，表示每个线程还需要的各类资源数量。 Need[i,j] = d，则表示线程 i 还需要第 j 类资源的数量为 d 。
-    pub mutex_need: Vec<Vec<usize>>,
-    /// Allocation：n * m 矩阵，表示每类资源已分配给每个线程的资源数。 Allocation[i,j] = g，则表示线程 i 当前己分得第 j 类资源的数量为 g。
-    pub mutex_allocation: Vec<Vec<usize>>,
-    // semaphore
 }
 
 impl ProcessControlBlockInner {
@@ -95,41 +83,6 @@ impl ProcessControlBlockInner {
     /// get a task with tid in this process
     pub fn get_task(&self, tid: usize) -> Arc<TaskControlBlock> {
         self.tasks[tid].as_ref().unwrap().clone()
-    }
-    /// detect deadlock
-    pub fn mutex_deadlock_detect(&self) -> isize {
-        let finish = self.get_finish();
-
-        let mut flag: bool = true;
-        
-        for i in 0..finish.len() {
-            if finish[i] == false {
-                for j in 0..self.mutex_need[i].len() {
-                    if self.mutex_need[i][j] <= self.mutex_work[j] {
-                        flag = false;
-                        break;
-                    }
-                }
-            }
-        }
-
-        if flag {
-            return DEAD;
-        } else {
-            return 0;
-        }
-    }
-
-    fn get_finish(&self) -> Vec<bool> {
-        let mut finish = Vec::new();
-        finish.resize(self.tasks.len(), true);
-        for i in 0..self.tasks.len() {
-            if let Some(t) = &self.tasks[i] {
-                let t_inner = t.inner_exclusive_access();
-                finish[i] = t_inner.exit_code.is_none();
-            }
-        }
-        finish
     }
 }
 
@@ -169,10 +122,6 @@ impl ProcessControlBlock {
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
                     deadlock_detection: false,
-                    mutex_available: Vec::new(),
-                    mutex_work: Vec::new(),
-                    mutex_need: Vec::new(),
-                    mutex_allocation: Vec::new(),
                 })
             },
         });
@@ -198,8 +147,6 @@ impl ProcessControlBlock {
         // add main thread to the process
         let mut process_inner = process.inner_exclusive_access();
         process_inner.tasks.push(Some(Arc::clone(&task)));
-        process_inner.mutex_need.push(Vec::new());
-        process_inner.mutex_allocation.push(Vec::new());
         drop(process_inner);
         insert_into_pid2process(process.getpid(), Arc::clone(&process));
         // add main thread to scheduler
@@ -302,10 +249,6 @@ impl ProcessControlBlock {
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
                     deadlock_detection: false,
-                    mutex_available: Vec::new(),
-                    mutex_work: Vec::new(),
-                    mutex_need: Vec::new(),
-                    mutex_allocation: Vec::new(),
                 })
             },
         });
@@ -328,8 +271,6 @@ impl ProcessControlBlock {
         // attach task to child process
         let mut child_inner = child.inner_exclusive_access();
         child_inner.tasks.push(Some(Arc::clone(&task)));
-        child_inner.mutex_need.push(Vec::new());
-        child_inner.mutex_allocation.push(Vec::new());
         drop(child_inner);
         // modify kstack_top in trap_cx of this thread
         let task_inner = task.inner_exclusive_access();
