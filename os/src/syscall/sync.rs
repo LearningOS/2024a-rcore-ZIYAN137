@@ -166,6 +166,7 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
     let process_inner = process.inner_exclusive_access();
     let deadlock_detection = process_inner.deadlock_detection;
     let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
+    // 参考了 https://blog.csdn.net/weixin_44246009/article/details/108548948
     if deadlock_detection {
         println!("deadlock detection os/src/syscall/sync.rs:{}", 168);
         let mut work = Vec::new();

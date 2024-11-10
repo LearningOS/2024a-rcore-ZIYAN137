@@ -1,10 +1,51 @@
 # 编程题
 
-// TODO
+## syscall
+    原来有提供地址翻译啊，这下就不用自己写v2p啥的了。
+
+## 死锁检测
+
+    mutex的testcase比较简单，写一个很弱智的实现过了
+
+    semaphore的话，让每个test自己管理一个need和allocation，由于之前直接使用矩阵，莫名其妙的导致了不少越界问题，这下子在vector中存储一些pair(sid, count)，然后就直接遍历，虽然性能不太行，但是能过就好。
 
 # 简答题
 
-// TODO
+## 1. 在我们的多线程实现中，当主线程 (即 0 号线程) 退出时，视为整个进程退出， 此时需要结束该进程管理的所有线程并回收其资源。 - 需要回收的资源有哪些？ - 其他线程的 TaskControlBlock 可能在哪些位置被引用，分别是否需要回收，为什么？
+
+## 2. 对比以下两种 Mutex.unlock 的实现，二者有什么区别？这些区别可能会导致什么问题？
+
+应该是对locked状态的处理不同
+Mutex1：无论是否有等待的任务，都会先将 locked 设为 false，然后再尝试唤醒等待队列中的任务。
+Mutex2：只有在没有等待任务时，才将 locked 设为 false；如果有等待任务，locked 状态保持为 true。
+
+在 Mutex1 中，当有等待任务时，将 locked 设为 false 后，可能会导致其他线程在等待的任务被唤醒并获取锁之前获得锁，造成竞争条件，破坏互斥锁的正确性。
+Mutex2 的实现避免了这个问题，因为当有等待任务时，locked 保持为 true，确保了只有被唤醒的任务才能继续持有锁，维护了互斥性。
+
+```Rust
+impl Mutex for Mutex1 {
+    fn unlock(&self) {
+        let mut mutex_inner = self.inner.exclusive_access();
+        assert!(mutex_inner.locked);
+        mutex_inner.locked = false;
+        if let Some(waking_task) = mutex_inner.wait_queue.pop_front() {
+            add_task(waking_task);
+        }
+    }
+}
+
+impl Mutex for Mutex2 {
+    fn unlock(&self) {
+        let mut mutex_inner = self.inner.exclusive_access();
+        assert!(mutex_inner.locked);
+        if let Some(waking_task) = mutex_inner.wait_queue.pop_front() {
+            add_task(waking_task);
+        } else {
+            mutex_inner.locked = false;
+        }
+    }
+}
+```
 
 # 荣誉准则
 
@@ -16,7 +57,8 @@
 2. 此外，我也参考了 以下资料 ，还在代码中对应的位置以注释形式记录了具体的参考来源及内容：
 
     《你参考的资料说明》
-    无
+
+    死锁检测算法(https://blog.csdn.net/weixin_44246009/article/details/108548948)
 
 3. 我独立完成了本次实验除以上方面之外的所有工作，包括代码与文档。 我清楚地知道，从以上方面获得的信息在一定程度上降低了实验难度，可能会影响起评分。
 
